@@ -41,16 +41,16 @@ async def or_gate_test(dut):
             await writer.write(B_DATA_ADDR, b_val)
 
             # Wait until output is ready (poll Y_STATUS)
-            for _ in range(100):  # wait up to 1000 ns
-                y_valid = await reader.read(Y_STATUS_ADDR)
-                if y_valid:
-                    y_val = await reader.read(Y_OUTPUT_ADDR)
-                    expected = a_val | b_val
-                    assert y_val == expected, f"FAIL: {a_val} | {b_val} = {expected}, got {y_val}"
-                    sample_coverage(a_val, b_val)
-                    break
-                await Timer(10, units="ns")
-            else:
-                assert False, f"Timeout waiting for Y output for inputs a={a_val}, b={b_val}"
+        for _ in range(100):  # wait up to 1000 ns
+            y_valid = await reader.read(Y_STATUS_ADDR)
+            if y_valid:
+                y_val = await reader.read(Y_OUTPUT_ADDR)
+                expected = a_val | b_val
+                assert y_val == expected, f"FAIL: {a_val} | {b_val} = {expected}, got {y_val}"
+                sample_coverage(a_val, b_val)
+                break
+            await Timer(10, units="ns")
+        else:
+            assert False, f"Timeout waiting for Y output for inputs a={a_val}, b={b_val}"
 
     coverage_db.export_to_xml(filename="coverage.xml")
