@@ -1,87 +1,194 @@
 import cocotb
-from cocotb.triggers import RisingEdge
-from cocotb.clock import Clock
+from cocotb.triggers import Timer, RisingEdge, ReadOnly, NextTimeStep, FallingEdge
+from cocotb_bus.drivers import BusDriver
+from cocotb_coverage.coverage import CoverCross, CoverPoint, coverage_db
+from cocotb_bus.monitors import BusMonitor
+import os
 import random
-from cocotb_coverage.coverage import CoverPoint, coverage_db
 
-class TestFIFO:
-    def __init__(self, dut):
-        self.dut = dut
-        
-        # Coverage points
-        @CoverPoint(
-            "top.write_address",
-            xf=lambda x: x.write_address,
-            bins=list(range(8))  # 8 address bins (0-7)
-        )
-        @CoverPoint(
-            "top.write_data",
-            xf=lambda x: x.write_data,
-            bins=list(range(256))  # 256 possible 8-bit values
-        )
-        def sample_write(self, write_address, write_data):
-            pass
+global case
+case=0
+def sb_fn(actual_value):
+    print("Recived value=",actual_value)
+    
 
-        self.sample_write = sample_write
+
+
+@CoverPoint("top.a",  # noqa F405
+            xf=lambda a, b: a,
+            bins=[0, 1],
+            bins_labels=['True', 'False']
+            )
+@CoverPoint("top.b",  # noqa F405
+            xf=lambda a, b: b,
+            bins=[0, 1],
+            bins_labels=['True', 'False']
+            )
+@CoverCross("top.cross.ab",
+            items=["top.b",
+                   "top.a"
+                   ]
+            )
+def cover(a, b):
+    cocotb.log.info(f"AB={a} {b}")
+    pass
+
 
 @cocotb.test()
-async def test_dut_fifo_behavior(dut):
-    test = TestFIFO(dut)
-    
-    # Start clock
-    clock = Clock(dut.CLK, 10, units="ns")
-    cocotb.start_soon(clock.start())
-
-    # Reset sequence
+async def ifc_test(dut):
+    dut.RST_N.value = 1
+    await Timer(1, 'ns')
     dut.RST_N.value = 0
-    await RisingEdge(dut.CLK)
+    await Timer(1, 'ns')
     await RisingEdge(dut.CLK)
     dut.RST_N.value = 1
-    await RisingEdge(dut.CLK)
+    writedrv = InputDriver(dut, 'write', dut.CLK)
+    InputMonitor(dut, 'write', dut.CLK, callback=a_cover)
+    readdrv=OutputDriver(dut, 'read', dut.CLK, sb_fn)
 
-    # Generate constrained random stimuli
-    for _ in range(20):  # Run 20 random transactions
-        write_en = random.randint(0, 1)
-        write_address = random.randint(0, 7)
-        write_data = random.randint(0, 255)
-        
-        dut.write_en.value = write_en
-        dut.write_address.value = write_address
-        dut.write_data.value = write_data
-        
-        test.sample_write(write_address, write_data)
+    if case==4: #overwrite in A fifo then test the result
+        dut.write_en.value=1
+        dut.read_en.value=1
+        dut.write_address.value=4
+        dut.write_data.value=1      
         await RisingEdge(dut.CLK)
-
-    # Specific test sequence
-    dut.write_en.value = 1
-    dut.write_data.value = 1
-    dut.write_address.value = 4
-    await RisingEdge(dut.CLK)
-
-    dut.write_en.value = 1
-    dut.write_data.value = 1
-    dut.write_address.value = 5
-    await RisingEdge(dut.CLK)
-
-    dut.write_en.value = 0
-    await RisingEdge(dut.CLK)
-
-    # Read operations
-    dut.read_en.value = 1
-    dut.read_address.value = 3
-    await RisingEdge(dut.CLK)
-    output = dut.read_data.value.integer
-    dut._log.info(f"Read data from y_ff (address 3): {output}")
-    dut.read_en.value = 0
-
-    for addr in range(8):
-        dut.read_address.value = addr
+        dut.write_address.value=4
+        dut.write_data.value=0 
         await RisingEdge(dut.CLK)
-        val = dut.read_data.value.integer
-        dut._log.info(f"Read data from address {addr}: {val}")
+        dut.write_address.value=5
+        dut.write_data.value=0
+        dut.read_address.value=3
+        await RisingEdge(dut.CLK)
+        await RisingEdge(dut.CLK)
+        await RisingEdge(dut.CLK)
+        assert dut.read_data.value==1,f"CASE 4 failed"
 
-    assert output in [0, 1], "Read data from y_ff must be 0 or 1"
-    
-    # Coverage report
-    coverage_db.report_coverage(dut._log.info, bins=True)
-    coverage_db.export_to_xml(filename="coverage.xml")
+    if case==5: #reset case
+        dut.write_en.value=1
+        dut.read_en.value=1
+        dut.write_address.value=4
+        dut.write_data.value=1      
+        await RisingEdge(dut.CLK)
+        dut.write_address.value=5
+        dut.write_data.value=0 
+        await RisingEdge(dut.CLK)
+        dut.read_address.value=3
+        dut.RST_N.value=0
+        assert dut.read_data.value==0,f"CASE 5 failed"
+        
+    for i in range(50):
+        writelist=[]
+        writeaddr = random.randint(0,5)
+        writelist.append(writeaddr)
+        writedata = random.randint(0, 1)
+        writelist.append(writedata)    
+        writedrv.append(writelist)
+        
+        readaddr = random.randint(0,5)        
+        if case==1:
+            readaddr = 0
+        if case==2 | case==3:
+            readaddr = 3
+
+        readdrv.append(readaddr)
+        
+        await FallingEdge(dut.CLK)
+
+    coverage_db.report_coverage(cocotb.log.info, bins=True)
+    coverage_file = os.path.join(
+        os.getenv('RESULT_PATH', "./"), 'coverage.xml')
+    coverage_db.export_to_xml(filename=coverage_file)
+
+
+class InputDriver(BusDriver):
+    _signals = ['address', 'data', 'en', 'rdy']
+
+    def __init__(self, dut, name, clk):
+        BusDriver.__init__(self, dut, name, clk)
+        self.bus.en.value = 0
+        self.clk = clk
+
+     
+    async def _driver_send(self, value, sync=True):
+        for i in range(random.randint(0, 20)):
+            await RisingEdge(self.clk)
+        if self.bus.rdy.value != 1:
+            await RisingEdge(self.bus.rdy)
+        self.bus.en.value = 1
+        if case==1: #input without enable
+            self.bus.en.value = 0
+        self.bus.address.value = value[0]
+        if case==2: #unreserved address
+            self.bus.address.value = 7
+        if case==3: #write address with read enable
+            self.bus.address.value = 0
+        self.bus.data.value = value[1]        
+        await ReadOnly()
+        await RisingEdge(self.clk)
+        self.bus.en.value = 0
+        await NextTimeStep()
+        
+class InputMonitor(BusMonitor):
+    _signals = ['address', 'data', 'en', 'rdy']
+
+    async def _monitor_recv(self):
+        fallingedge = FallingEdge(self.clock)
+        rdonly = ReadOnly()
+        phases = {
+            0: 'Idle',
+            1: 'Rdy',
+            3: 'Txn'
+        }
+        prev = 'Idle'
+        while True:
+            await fallingedge
+            await rdonly
+            txn = (self.bus.en.value << 1) | self.bus.rdy.value
+            self._recv({'previous': prev, 'current': phases[txn]})
+            prev = phases[txn]
+
+class OutputDriver(BusDriver):
+    _signals = ['address', 'data', 'en', 'rdy']
+    def __init__(self, dut, name, clk,sb_callback):
+        BusDriver.__init__(self, dut, name, clk)
+        self.bus.en.value = 0
+        self.clk = clk
+        self.callback = sb_callback
+        
+
+    async def _driver_send(self, value, sync=True):
+
+        for i in range(random.randint(0, 20)):
+            await RisingEdge(self.clk)
+        if self.bus.rdy.value != 1:
+            await RisingEdge(self.bus.rdy)
+        self.bus.en.value = 1
+        self.bus.address.value = value  
+        await ReadOnly()
+        self.callback(self.bus.data.value)
+        if case==1:
+            assert self.bus.data.value==1,f"incorrect case 1"
+        if case==2 | case==3:
+            assert self.bus.data.value==0,f"incorrect case 2"
+        await RisingEdge(self.clk)
+        await NextTimeStep()
+        self.bus.en.value = 0
+
+
+
+@CoverPoint(f"top.a.ifc_state",  # noqa F405
+            xf=lambda x: x['current'],
+            bins=['Idle', 'rdy', 'Txn'],
+            )
+@CoverPoint(f"top.a.previfc_state",  # noqa F405
+            xf=lambda x: x['previous'],
+            bins=['Idle', 'Rdy', 'Txn'],
+            )
+@CoverCross("top.cross.ifc.a",
+            items=[
+                "top.a.previfc_state", "top.a.ifc_state"
+            ]
+            )
+def a_cover(state):
+    cocotb.log.warning(f"state={state}")
+    pass
