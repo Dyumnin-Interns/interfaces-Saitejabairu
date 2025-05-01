@@ -41,22 +41,25 @@ class TB:
 
 async def run_test_case(dut, case):
     tb = TB(dut)
-    
-    # Start clock
     cocotb.start_soon(Clock(dut.CLK, 10, units='ns').start())
+    await tb.reset(20)
     
-    # Reset sequence
-    await tb.reset(20)  # Longer reset duration
-    
-    # Basic operational test
     if case == 0:
-        dut._log.info("Running basic operational test")
-        for i in range(10):
+        # Basic write/read test
+        await tb.write(0, 1)
+        await tb.read(0)  # Will verify value matches
+        
+        await tb.write(1, 0)
+        await tb.read(1)
+        
+        # Random test
+        for _ in range(10):
             addr = random.randint(0, 5)
             data = random.randint(0, 1)
-            await tb.write_drv.write(addr, data)
-            await tb.read_drv.read(addr)
-            await FallingEdge(dut.CLK)
+            await tb.write(addr, data)
+            await tb.read(addr)
+            
+    # Add other test cases...
     
     # Test case 1: Input without enable
     elif case == 1:
@@ -81,10 +84,13 @@ async def ifc_test(dut):
         dut._log.error(f"Test failed: {str(e)}")
         raise
         
-    # Coverage reporting
-    coverage_db.report_coverage(dut._log.info, bins=True)
+# Replace your current coverage reporting with:
+if coverage_db.coverages:
+    coverage_db.report_coverage(cocotb.log.info, bins=True)
     coverage_file = os.path.join(os.getenv('RESULT_PATH', "./"), 'coverage.xml')
     coverage_db.export_to_xml(filename=coverage_file)
+else:
+    cocotb.log.warning("No coverage data collected")
 
 class InputDriver(BusDriver):
     _signals = ['address', 'data', 'en', 'rdy']
@@ -101,7 +107,7 @@ class InputDriver(BusDriver):
     async def _driver_send(self, value, sync=True):
         await RisingEdge(self.clk)
         self.bus.en.value = 1
-        self.bus.address.value = value[0]
+        self.bus.address.value = value[0] & 0x7
         self.bus.data.value = value[1]
         
         await ReadOnly()
