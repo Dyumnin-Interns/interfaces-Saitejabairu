@@ -1,11 +1,10 @@
 name: Autograding Tests
-'on':
-- push
-- repository_dispatch
+on: [push, repository_dispatch]
 permissions:
   checks: write
   actions: read
   contents: read
+
 jobs:
   run-autograding-tests:
     runs-on: ubuntu-latest
@@ -13,22 +12,35 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    - name: dut test
+
+    - name: Setup environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y iverilog gtkwave
+        pip install cocotb==1.8.0 pytest
+
+    - name: Run original test
       id: dut-test
-      uses: classroom-resources/autograding-command-grader@v1
-      with:
-        test-name: dut test
-        setup-command: "./setup.sh"
-        command: make -C tests
-        timeout: 3
-    - name: delayed dut
+      run: |
+        make -C tests clean
+        make -C tests
+        mv tests/results.xml tests/orig.xml
+
+    - name: Run delayed DUT test
       id: delayed-dut
-      uses: classroom-resources/autograding-command-grader@v1
+      run: |
+        cp hdl/delayed_dut.v hdl/dut.v
+        make -C tests clean
+        make -C tests
+        mv tests/results.xml tests/delayed_dut.xml
+
+    - name: Upload waveforms
+      uses: actions/upload-artifact@v3
+      if: always()
       with:
-        test-name: delayed dut
-        setup-command: "./setup_delayed.sh"
-        command: make -C tests
-        timeout: 3
+        name: simulation-waveforms
+        path: tests/*.vcd
+
     - name: Autograding Reporter
       uses: classroom-resources/autograding-grading-reporter@v1
       env:
