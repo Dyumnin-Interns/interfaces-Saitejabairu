@@ -58,27 +58,17 @@ async def interface_or_test(dut):
     write_if = RegisterWriteInterface(dut)
     read_if = RegisterReadInterface(dut)
 
-    # Constrained random test (keep testing until full coverage)
-    required = {(0, 0), (0, 1), (1, 0), (1, 1)}
-    while not required.issubset(covered_values):
-        write_addr = random.randint(0, 1)
-        write_data = random.randint(0, 1)
-    
-        write_addr = random.randint(0, 1)  # Assume 0 = A, 1 = B
-        write_data = random.randint(0, 1)  # 1-bit input
+    # All cross combinations of (write_addr, write_data)
+    for write_addr in [0, 1]:
+        for write_data in [0, 1]:
+            sample_coverage(write_addr, write_data)
+            await write_if.write(write_addr, write_data)
 
-        sample_coverage(write_addr, write_data)
-        await write_if.write(write_addr, write_data)
+    # Read OR result (assuming result is at read_address=0)
+    result = await read_if.read(0)
+    print(f"Read OR result: {result}")
 
-        # Optional: Read output when both A and B are written
-        if (0, 0) in covered_values and (0, 1) in covered_values and \
-           (1, 0) in covered_values and (1, 1) in covered_values:
-            result = await read_if.read(0)  # Assume read from OR result
-            print(f"Read OR result: {result}")
-
-        if coverage_db["top.cross_write"].coverage == 100:
-            break
-
+    # Check if full coverage achieved
+    print("Cross coverage %:", coverage_db["top.cross_write"].coverage)
     assert coverage_db["top.cross_write"].coverage == 100, "Functional coverage not met!"
-
     coverage_db.export_to_xml(filename="coverage.xml")
