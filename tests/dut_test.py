@@ -41,12 +41,12 @@ async def or_gate_test(dut):
             await writer.write(B_DATA_ADDR, b_val)
 
     # Wait until output is ready (poll Y_STATUS)
-            for _ in range(10):
-                y_valid = await reader.read(Y_STATUS_ADDR)
-                if y_valid:
-                    y_val = await reader.read(Y_OUTPUT_ADDR)
-                    expected = a_val | b_val
-                    assert y_val == expected, f"FAIL: {a_val} | {b_val} = {expected}, got {y_val}"
-                    sample_coverage(a_val, b_val)
-                    break
-                await Timer(10, units="ns")  # Wait a little and retry
+    for _ in range(10):
+        y_valid = await reader.read(Y_STATUS_ADDR)
+        if y_valid:
+            y_val = await reader.read(Y_OUTPUT_ADDR)
+            expected = a_val | b_val
+            assert y_val == expected, f"FAIL: {a_val} | {b_val} = {expected}, got {y_val}"
+            sample_coverage(a_val, b_val)
+            break
+        await Timer(10, units="ns")  # Wait a little and retry
