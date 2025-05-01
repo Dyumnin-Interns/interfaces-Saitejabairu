@@ -42,7 +42,6 @@ covered_values = set()
 def sample_coverage(write_addr, write_data):
     covered_values.add((write_addr, write_data))
 
-
 @cocotb.test()
 async def interface_or_test(dut):
     """CRV + Functional Coverage test of OR gate using register-based interface"""
@@ -58,17 +57,28 @@ async def interface_or_test(dut):
     write_if = RegisterWriteInterface(dut)
     read_if = RegisterReadInterface(dut)
 
-    # All cross combinations of (write_addr, write_data)
-    for write_addr in [0, 1]:
-        for write_data in [0, 1]:
-            sample_coverage(write_addr, write_data)
-            await write_if.write(write_addr, write_data)
+    total_combos = [(0, 0), (0, 1), (1, 0), (1, 1)]
 
-    # Read OR result (assuming result is at read_address=0)
+    # Force writing all combinations
+    for addr, data in total_combos:
+        sample_coverage(addr, data)
+        print(f"Writing: address={addr}, data={data}")
+        await write_if.write(addr, data)
+
+    # Read result
     result = await read_if.read(0)
     print(f"Read OR result: {result}")
 
-    # Check if full coverage achieved
+    # Check if we've covered all combos
+    print(f"Covered values: {covered_values}")
+    if covered_values >= set(total_combos):
+        print("All combinations covered.")
+    else:
+        raise AssertionError("Functional coverage not met!")
+
+    # Optional: export coverage
+    coverage_db.export_to_xml(filename="coverage.xml")
+
     print("Cross coverage %:", coverage_db["top.cross_write"].coverage)
     assert coverage_db["top.cross_write"].coverage == 100, "Functional coverage not met!"
     coverage_db.export_to_xml(filename="coverage.xml")
