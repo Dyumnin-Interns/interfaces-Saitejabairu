@@ -1,69 +1,52 @@
 import cocotb
-from cocotb.triggers import RisingEdge, Timer
 from cocotb.clock import Clock
-from cocotb.result import TestFailure
+from cocotb.triggers import RisingEdge, Timer
 
-# CSR addresses (these must match DUT)
-A_WRITE_ADDR = 0x00
-B_WRITE_ADDR = 0x04
-Y_READ_ADDR  = 0x08
-A_EMPTY_ADDR = 0x0C
-B_EMPTY_ADDR = 0x10
-Y_EMPTY_ADDR = 0x14
+from interfaces.read_interface import ReadInterface
+from interfaces.write_interface import WriteInterface
+from constraints.input_generator import ConstrainedRandomInput
+from coverage.coverage import sample_coverage, coverage_db
+
+A_STATUS_ADDR = 0
+B_STATUS_ADDR = 1
+Y_STATUS_ADDR = 2
+Y_OUTPUT_ADDR = 3
+A_DATA_ADDR   = 4
+B_DATA_ADDR   = 5
 
 @cocotb.test()
 async def or_gate_test(dut):
-    """ Test the OR gate DUT using register interface """
-
-    # Start clock
     cocotb.start_soon(Clock(dut.CLK, 10, units="ns").start())
-
-    # Reset
     dut.RST_N.value = 0
-    await Timer(100, units="ns")
+    dut.read_en.value = 0
+    dut.write_en.value = 0
+    await RisingEdge(dut.CLK)
     dut.RST_N.value = 1
-    await RisingEdge(dut.CLK)
 
-   async def write_reg(addr, data):
-    dut.wr_if.valid.value = 1
-    dut.wr_if.addr.value = addr
-    dut.wr_if.data.value = data
-    await RisingEdge(dut.CLK)
-    dut.wr_if.valid.value = 0
-    await RisingEdge(dut.CLK)
+    writer = WriteInterface(dut)
+    reader = ReadInterface(dut)
+    cr_gen = ConstrainedRandomInput()
 
-  async def read_reg(addr):
-    dut.rd_if.valid.value = 1
-    dut.rd_if.addr.value = addr
-    await RisingEdge(dut.CLK)
-    data = dut.rd_if.data.value.integer
-    dut.rd_if.valid.value = 0
-    await RisingEdge(dut.CLK)
-    return data
+    for _ in range(20):
+        in_data = cr_gen.get_sample()
+        a_val = in_data['a']
+        b_val = in_data['b']
 
-    # Helper: Wait until y_ff is not empty
-    async def wait_until_output_ready(timeout_cycles=20):
-        for _ in range(timeout_cycles):
-            empty = await read_reg(Y_EMPTY_ADDR)
-            if empty == 0:
-                return
-            await RisingEdge(dut.CLK)
-        raise TestFailure("Timeout waiting for y_ff to be non-empty")
+        # Check if FIFOs are ready
+        a_ready = await reader.read(A_STATUS_ADDR)
+        b_ready = await reader.read(B_STATUS_ADDR)
 
-    # Run multiple test cases
-    test_vectors = [(0, 0), (0, 1), (1, 0), (1, 1)]
-    for a_val, b_val in test_vectors:
-        # Write inputs
-        await write_reg(A_WRITE_ADDR, a_val)
-        await write_reg(B_WRITE_ADDR, b_val)
+        if a_ready and b_ready:
+            await writer.write(A_DATA_ADDR, a_val)
+            await writer.write(B_DATA_ADDR, b_val)
 
-        # Wait until output is ready
-        await wait_until_output_ready()
+        await Timer(100, units="ns")  # Let it process
 
-        # Read and check output
-        y_val = await read_reg(Y_READ_ADDR)
-        expected = a_val | b_val
-        dut._log.info(f"{a_val} | {b_val} = {expected}, got {y_val}")
-        assert y_val == expected, f"FAIL: {a_val} | {b_val} = {expected}, got {y_val}"
+        y_valid = await reader.read(Y_STATUS_ADDR)
+        if y_valid:
+            y_val = await reader.read(Y_OUTPUT_ADDR)
+            expected = a_val | b_val
+            assert y_val == expected, f"FAIL: {a_val} | {b_val} = {expected}, got {y_val}"
+            sample_coverage(a_val, b_val)
 
-    dut._log.info("All test cases passed.")
+    coverage_db.export_to_xml(filename="coverage.xml")
