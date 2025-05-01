@@ -1,25 +1,23 @@
 import cocotb
-from cocotb.triggers import RisingEdge, Timer
+from cocotb.triggers import RisingEdge
 from cocotb.clock import Clock
-from cocotb.scoreboard import Scoreboard
 import random
 from cocotb_coverage.coverage import CoverPoint, coverage_db
 
 class TestFIFO:
     def __init__(self, dut):
         self.dut = dut
-        self.scoreboard = Scoreboard(dut)
         
         # Coverage points
         @CoverPoint(
             "top.write_address",
             xf=lambda x: x.write_address,
-            bins=[0, 1, 2, 3, 4, 5, 6, 7]
+            bins=list(range(8))  # 8 address bins (0-7)
         )
         @CoverPoint(
             "top.write_data",
             xf=lambda x: x.write_data,
-            bins=[0, 1, 2, 3, 4, 5, 6, 7]
+            bins=list(range(256))  # 256 possible 8-bit values
         )
         def sample_write(self, write_address, write_data):
             pass
@@ -43,54 +41,45 @@ async def test_dut_fifo_behavior(dut):
 
     # Generate constrained random stimuli
     for _ in range(20):  # Run 20 random transactions
-        # Randomize inputs with constraints
         write_en = random.randint(0, 1)
         write_address = random.randint(0, 7)
         write_data = random.randint(0, 255)
         
-        # Apply to DUT
         dut.write_en.value = write_en
         dut.write_address.value = write_address
         dut.write_data.value = write_data
         
-        # Sample coverage
         test.sample_write(write_address, write_data)
-        
         await RisingEdge(dut.CLK)
 
-    # Specific test sequence from original test
-    # Step 1: Write to a_ff
-    dut.write_en.value = 1
-    dut.write_data.value = 1  # Pushing data `1`
-    dut.write_address.value = 4  # Address for a_ff
-    await RisingEdge(dut.CLK)
-
-    # Step 2: Write to b_ff
+    # Specific test sequence
     dut.write_en.value = 1
     dut.write_data.value = 1
-    dut.write_address.value = 5  # Address for b_ff
+    dut.write_address.value = 4
     await RisingEdge(dut.CLK)
 
-    # Disable write
+    dut.write_en.value = 1
+    dut.write_data.value = 1
+    dut.write_address.value = 5
+    await RisingEdge(dut.CLK)
+
     dut.write_en.value = 0
     await RisingEdge(dut.CLK)
 
-    # Step 3: Read y_ff status
+    # Read operations
     dut.read_en.value = 1
-    dut.read_address.value = 3  # Read from y_ff
+    dut.read_address.value = 3
     await RisingEdge(dut.CLK)
     output = dut.read_data.value.integer
     dut._log.info(f"Read data from y_ff (address 3): {output}")
     dut.read_en.value = 0
 
-    # Step 4: Read all addresses
-    for addr in range(8):  # Check all 8 addresses
+    for addr in range(8):
         dut.read_address.value = addr
         await RisingEdge(dut.CLK)
         val = dut.read_data.value.integer
         dut._log.info(f"Read data from address {addr}: {val}")
 
-    # Assertions
     assert output in [0, 1], "Read data from y_ff must be 0 or 1"
     
     # Coverage report
