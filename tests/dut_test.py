@@ -73,8 +73,9 @@ async def interface_or_test(dut):
             result = await read_if.read(0)  # Assume read from OR result
             print(f"Read OR result: {result}")
 
-        if coverage_db["top.cross_write"].is_covered():
+        if coverage_db["top.cross_write"].coverage == 100:
             break
 
-    assert coverage_db["top.cross_write"].is_covered(), "Functional coverage not met!"
+    assert coverage_db["top.cross_write"].coverage == 100, "Functional coverage not met!"
+
     coverage_db.export_to_xml(filename="coverage.xml")
