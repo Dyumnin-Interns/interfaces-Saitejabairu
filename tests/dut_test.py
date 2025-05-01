@@ -24,24 +24,22 @@ async def or_gate_test(dut):
     dut.RST_N.value = 1
     await RisingEdge(dut.CLK)
 
-    # Helper: Write to DUT register
-    async def write_reg(addr, data):
-        dut.wr_valid.value = 1
-        dut.wr_addr.value = addr
-        dut.wr_data.value = data
-        await RisingEdge(dut.CLK)
-        dut.wr_valid.value = 0
-        await RisingEdge(dut.CLK)
+   async def write_reg(addr, data):
+    dut.wr_if.valid.value = 1
+    dut.wr_if.addr.value = addr
+    dut.wr_if.data.value = data
+    await RisingEdge(dut.CLK)
+    dut.wr_if.valid.value = 0
+    await RisingEdge(dut.CLK)
 
-    # Helper: Read from DUT register
-    async def read_reg(addr):
-        dut.rd_valid.value = 1
-        dut.rd_addr.value = addr
-        await RisingEdge(dut.CLK)
-        data = dut.rd_data.value.integer
-        dut.rd_valid.value = 0
-        await RisingEdge(dut.CLK)
-        return data
+  async def read_reg(addr):
+    dut.rd_if.valid.value = 1
+    dut.rd_if.addr.value = addr
+    await RisingEdge(dut.CLK)
+    data = dut.rd_if.data.value.integer
+    dut.rd_if.valid.value = 0
+    await RisingEdge(dut.CLK)
+    return data
 
     # Helper: Wait until y_ff is not empty
     async def wait_until_output_ready(timeout_cycles=20):
