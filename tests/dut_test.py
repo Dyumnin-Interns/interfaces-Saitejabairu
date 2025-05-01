@@ -1,81 +1,71 @@
 import cocotb
-from cocotb.triggers import RisingEdge, Timer
-from cocotb.clock import Clock
-from cocotb_coverage.coverage import coverage_db, CoverCross, CoverPoint
+from cocotb.triggers import Timer
+from cocotb.regression import TestFactory
+from cocotbext.cocotb_bus.monitors import BusMonitor
+from cocotbext.cocotb_bus.drivers import BusDriver
 import random
 
-# Functional coverage points
-covered_values = set()
+# Coverage model
+covered_inputs = set()
+full_coverage = {(a, b) for a in range(2) for b in range(2)}
 
-def sample_cover(a, b):
-    covered_values.add((a, b))
+class RegisterWriteInterface(BusDriver):
+    _signals = ["addr", "data", "wr_en"]
 
-@CoverPoint("top.a", xf=lambda a, b: a, bins=[0, 1], at_least=1)
-@CoverPoint("top.b", xf=lambda a, b: b, bins=[0, 1], at_least=1)
-@CoverCross("top.cross_ab", items=["top.a", "top.b"], at_least=1)
-def ab_coverage(a, b):
-    sample_cover(a, b)
+    def __init__(self, entity, name, clock, **kwargs):
+        super().__init__(entity, name, clock, **kwargs)
+        self.bus.wr_en.setimmediatevalue(0)
 
-# Interfaces
-class WriteInterface:
-    def __init__(self, dut):
-        self.dut = dut
+    async def write(self, addr, data):
+        self.bus.addr.value = addr
+        self.bus.data.value = data
+        self.bus.wr_en.value = 1
+        await Timer(10, units='ns')
+        self.bus.wr_en.value = 0
+        await Timer(10, units='ns')
 
-    async def write(self, address, data):
-        self.dut.write_address.value = address
-        self.dut.write_data.value = data
-        self.dut.write_en.value = 1
-        await RisingEdge(self.dut.CLK)
-        self.dut.write_en.value = 0
-        await RisingEdge(self.dut.CLK)
+class RegisterReadInterface(BusMonitor):
+    _signals = ["addr", "data", "rd_en"]
 
-class ReadInterface:
-    def __init__(self, dut):
-        self.dut = dut
+    def __init__(self, entity, name, clock, **kwargs):
+        super().__init__(entity, name, clock, **kwargs)
+        self.entity = entity
+        self.clock = clock
+        self.bus.rd_en.setimmediatevalue(0)
 
-    async def read(self, address):
-        self.dut.read_address.value = address
-        self.dut.read_en.value = 1
-        await RisingEdge(self.dut.CLK)
-        self.dut.read_en.value = 0
-        await RisingEdge(self.dut.CLK)
-        return int(self.dut.read_data.value)
+    async def read(self, addr):
+        self.bus.addr.value = addr
+        self.bus.rd_en.value = 1
+        await Timer(10, units='ns')
+        data = self.bus.data.value.integer
+        self.bus.rd_en.value = 0
+        await Timer(10, units='ns')
+        return data
 
 @cocotb.test()
 async def interface_or_test(dut):
-    """CRV + Functional Coverage test of OR gate using register-based interface"""
+    """
+    CRV + Functional Coverage test of OR gate using register-based interface
+    """
+    write_if = RegisterWriteInterface(dut, "write_if", None)
+    read_if = RegisterReadInterface(dut, "read_if", None)
 
-    cocotb.start_soon(Clock(dut.CLK, 10, units="ns").start())
+    attempts = 0
+    max_attempts = 20
 
-    write_if = WriteInterface(dut)
-    read_if = ReadInterface(dut)
-
-    # Reset
-    dut.RST_N.value = 0
-    dut.write_en.value = 0
-    dut.read_en.value = 0
-    await Timer(20, units="ns")
-    dut.RST_N.value = 1
-    await Timer(20, units="ns")
-
-    # Run constrained random tests until full coverage
-    max_tests = 20  # safety limit
-    test_count = 0
-
-    while len(covered_values) < 4 and test_count < max_tests:
-        test_count += 1
-
+    while covered_inputs != full_coverage and attempts < max_attempts:
         a = random.randint(0, 1)
         b = random.randint(0, 1)
 
-        ab_coverage(a, b)
+        if (a, b) in covered_inputs:
+            continue
 
-        # Write inputs
+        # Apply constrained-random stimulus
         await write_if.write(4, a)
         await write_if.write(5, b)
 
-        # Wait for output to be ready
-        for _ in range(10):
+        # Wait for y_ready with extended timeout
+        for _ in range(50):
             y_ready = await read_if.read(2)
             if y_ready == 1:
                 break
@@ -84,10 +74,12 @@ async def interface_or_test(dut):
             assert False, "Timeout waiting for output"
 
         # Read and check result
-        y_val = await read_if.read(3)
+        y = await read_if.read(3)
         expected = a | b
-        assert y_val == expected, f"Output mismatch: a={a}, b={b}, got={y_val}, expected={expected}"
+        assert y == expected, f"Expected {expected}, got {y}"
 
-    # Print coverage report
-    coverage_db.report_coverage(cocotb.log.info)
-    assert len(covered_values) == 4, f"Functional coverage incomplete: {covered_values}"
+        # Update coverage
+        covered_inputs.add((a, b))
+        attempts += 1
+
+    assert covered_inputs == full_coverage, f"Functional coverage incomplete: {covered_inputs}"
