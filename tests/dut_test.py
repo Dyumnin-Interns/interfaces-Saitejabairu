@@ -59,8 +59,11 @@ async def interface_or_test(dut):
     read_if = RegisterReadInterface(dut)
 
     # Constrained random test (keep testing until full coverage)
-    max_tests = 50
-    for _ in range(max_tests):
+    required = {(0, 0), (0, 1), (1, 0), (1, 1)}
+    while not required.issubset(covered_values):
+        write_addr = random.randint(0, 1)
+        write_data = random.randint(0, 1)
+    
         write_addr = random.randint(0, 1)  # Assume 0 = A, 1 = B
         write_data = random.randint(0, 1)  # 1-bit input
 
