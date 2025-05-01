@@ -19,7 +19,7 @@ B_DATA_ADDR   = 5
 
 
 @cocotb.test()
-async def or_gate_test(dut):
+async def ifc_test(dut):
     cocotb.start_soon(Clock(dut.CLK, 10, units="ns").start())
     dut.RST_N.value = 0
     dut.read_en.value = 0
