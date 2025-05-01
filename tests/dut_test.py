@@ -77,7 +77,7 @@ async def interface_or_test(dut):
         await write_if.write(5, b)
 
         await RisingEdge(dut.CLK)  # Allow OR logic to update
-
+        await RisingEdge(dut.CLK) 
         # Sample coverage after inputs are stable
         sample_coverage(a, b)
 
