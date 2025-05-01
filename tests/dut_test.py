@@ -71,10 +71,9 @@ async def interface_or_test(dut):
 
     # Check if we've covered all combos
     print(f"Covered values: {covered_values}")
-    if covered_values >= set(total_combos):
-        print("All combinations covered.")
-    else:
+    if covered_values != {(0, 0), (0, 1), (1, 0), (1, 1)}:
         raise AssertionError("Functional coverage not met!")
+
 
     # Optional: export coverage
     coverage_db.export_to_xml(filename="coverage.xml")
