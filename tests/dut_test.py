@@ -1,8 +1,8 @@
 import cocotb
 from cocotb.triggers import Timer
 from cocotb.regression import TestFactory
-from cocotbext.cocotb_bus.monitors import BusMonitor
-from cocotbext.cocotb_bus.drivers import BusDriver
+from cocotb_bus.monitors import BusMonitor
+from cocotb_bus.drivers import BusDriver
 import random
 
 # Coverage model
