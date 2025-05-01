@@ -50,3 +50,5 @@ async def or_gate_test(dut):
             sample_coverage(a_val, b_val)
             break
         await Timer(10, units="ns")  # Wait a little and retry
+    else:
+        assert False, "Timeout waiting for Y output"
