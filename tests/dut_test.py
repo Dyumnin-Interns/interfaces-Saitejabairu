@@ -1,10 +1,10 @@
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
-from cocotb_coverage.coverage import coverage_db, CoverCross, CoverPoint
+from cocotb_coverage.coverage import coverage_db, CoverPoint, CoverCross
 import random
 
-# Register write interface
+# Interfaces
 class RegisterWriteInterface:
     def __init__(self, dut):
         self.dut = dut
@@ -20,7 +20,6 @@ class RegisterWriteInterface:
             await RisingEdge(self.dut.CLK)
 
 
-# Register read interface
 class RegisterReadInterface:
     def __init__(self, dut):
         self.dut = dut
@@ -35,11 +34,10 @@ class RegisterReadInterface:
             await RisingEdge(self.dut.CLK)
         return int(self.dut.read_data.value)
 
-
-# Global coverage tracker
+# Coverage Set
 covered_values = set()
 
-# Functional coverage declarations
+# Functional Coverage Points
 @CoverPoint("top.input_a", xf=lambda a, b: a, bins=[0, 1], at_least=1)
 @CoverPoint("top.input_b", xf=lambda a, b: b, bins=[0, 1], at_least=1)
 @CoverCross("top.cross_inputs", items=["top.input_a", "top.input_b"], at_least=1)
@@ -50,6 +48,8 @@ def sample_coverage(a, b):
 @cocotb.test()
 async def interface_or_test(dut):
     """CRV + Functional Coverage test of OR gate using register-based interface"""
+
+    # Start Clock
     cocotb.start_soon(Clock(dut.CLK, 10, units="ns").start())
 
     # Reset
@@ -60,34 +60,43 @@ async def interface_or_test(dut):
     dut.RST_N.value = 1
     await RisingEdge(dut.CLK)
 
+    # Instantiate interfaces
     write_if = RegisterWriteInterface(dut)
     read_if = RegisterReadInterface(dut)
 
-    max_iterations = 100
+    # Try random combinations until full coverage
     iterations = 0
+    max_iterations = 50  # prevent infinite loops
 
-    while len(covered_values) < 4 and iterations < max_iterations:
+    while coverage_db["top.cross_inputs"].coverage < 100 and iterations < max_iterations:
         a = random.randint(0, 1)
         b = random.randint(0, 1)
 
-        # Stimulate input A at address 4 and B at address 5
+        # Assuming input A = address 4, B = address 5, output = address 3
         await write_if.write(4, a)
         await write_if.write(5, b)
+
+        await RisingEdge(dut.CLK)  # Allow OR logic to update
+
+        # Sample coverage after inputs are stable
         sample_coverage(a, b)
+
+        # Optionally validate output
+        result = await read_if.read(3)
+        expected = a | b
+        assert result == expected, f"OR output incorrect: {a} | {b} = {expected}, got {result}"
+
+        print(f"Sampled a={a}, b={b} -> OR={result}, Coverage={coverage_db['top.cross_inputs'].coverage}%")
 
         iterations += 1
         await Timer(5, units="ns")
 
-    # Read OR result from address 3
-    result = await read_if.read(3)
-    print(f"Read OR result: {result}")
-
-    print(f"Covered combinations: {covered_values}")
-    coverage_percent = coverage_db["top.cross_inputs"].coverage
-    print(f"Cross coverage %: {coverage_percent}")
-
-    if coverage_percent < 100:
+    # Final Coverage Check
+    if coverage_db["top.cross_inputs"].coverage < 100:
         raise AssertionError("Functional coverage < 100%!")
 
-    # Export coverage
-    coverage_db.export_to_xml("coverage.xml")
+    print("✅ All input combinations covered.")
+    print(f"✅ Cross coverage %: {coverage_db['top.cross_inputs'].coverage}")
+
+    # Export coverage to file
+    coverage_db.export_to_xml(filename="coverage.xml")
