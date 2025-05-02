@@ -8,12 +8,12 @@ from cocotb.runner import get_runner
 from cocotb.triggers import Timer, ClockCycles, RisingEdge, Event, ReadOnly
 from cocotb.clock import Clock
 from cocotb.log import logging, SimLog
-from cocotb_coverage.coverage import coverage_db
+
 import random as rnd
 import constraint
 
 # Local module imports
-from coverage import sample_fnc, fl_cv
+from coverage.coverage import sample_fnc, fl_cv
 from write_Driver import write_Driver
 from read_Driver import read_Driver
 
