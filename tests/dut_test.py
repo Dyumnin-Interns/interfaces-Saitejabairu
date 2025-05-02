@@ -16,7 +16,7 @@ A_DATA_ADDR   = 4
 B_DATA_ADDR   = 5
 
 @cocotb.test()
-async def simple_test(dut):
+async def dut_test(dut):
     read_if = ReadInterface(dut)
     write_if = WriteInterface(dut)
 
