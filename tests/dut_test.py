@@ -14,8 +14,8 @@ import constraint
 
 # Local module imports
 from coverage.coverage import sample_fnc, fl_cv
-from Driver.write_Driver import write_Driver
-from Driver.read_Driver import read_Driver
+from Drivers.write_Driver import write_Driver
+from Drivers.read_Driver import read_Driver
 
 class TB:
     def __init__(self, name, entity, log):
