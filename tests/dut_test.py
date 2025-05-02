@@ -17,6 +17,9 @@ B_DATA_ADDR   = 5
 
 @cocotb.test()
 async def dut_test(dut):
+
+    read_if = ReadInterface(dut)
+    write_if = WriteInterface(dut)  
     # Create clock
     cocotb.start_soon(Clock(dut.CLK, 10, units="ns").start())
 
