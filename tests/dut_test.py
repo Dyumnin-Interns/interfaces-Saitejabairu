@@ -17,16 +17,17 @@ B_DATA_ADDR   = 5
 
 @cocotb.test()
 async def dut_test(dut):
-    read_if = ReadInterface(dut)
-    write_if = WriteInterface(dut)
+    # Create clock
+    cocotb.start_soon(Clock(dut.CLK, 10, units="ns").start())
 
-    # Reset
+    # Reset sequence
     dut.RST_N.value = 0
-    for _ in range(5):
-        await RisingEdge(dut.CLK)
+    await Timer(20, units="ns")
     dut.RST_N.value = 1
-    await RisingEdge(dut.CLK)
+    await Timer(20, units="ns")
 
+    # Wait a bit to let sim run
+    await Timer(100, units="ns")
     # Test
     a, b = 1, 0
     await write_if.write(A_DATA, a)
