@@ -1,3 +1,6 @@
+
+from cocotb_bus.drivers import BusDriver
+
 class read_Driver(BusDriver):
 
     _signals=["CLK", "RST_N", "write_address", "write_data", "write_en", "write_rdy", "read_address", "read_en", "readd_rdy", "read_data"]
