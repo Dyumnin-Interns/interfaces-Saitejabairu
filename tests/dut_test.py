@@ -22,8 +22,7 @@ async def dut_test(dut):
     write_if = WriteInterface(dut) 
     
 
-    A_DATA = 0b100
-    B_DATA = 0b101
+   
     # Create clock
     cocotb.start_soon(Clock(dut.CLK, 10, units="ns").start())
 
@@ -37,14 +36,14 @@ async def dut_test(dut):
     await Timer(100, units="ns")
     # Test
     a, b = 1, 0
-    await write_if.write(A_DATA, a)
-    await write_if.write(B_DATA, b)
+    await write_if.write(A_DATA_ADDR, a)
+    await write_if.write(B_DATA_ADDR, b)
 
     for _ in range(10):
         await RisingEdge(dut.CLK)
 
-    y_status = await read_if.read(Y_STATUS)
-    y_output = await read_if.read(Y_OUTPUT)
+    y_status = await read_if.read(Y_STATUS_ADDR)
+    y_output = await read_if.read(Y_OUTPUT_ADDR)
 
     assert y_status == 1, "Y FIFO should not be empty"
     assert y_output == (a | b), f"Expected {a | b}, got {y_output}"
