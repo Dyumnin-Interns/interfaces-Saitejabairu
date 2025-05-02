@@ -1,4 +1,3 @@
-import cocotb
 from cocotb.triggers import RisingEdge
 
 class ReadInterface:
@@ -11,4 +10,4 @@ class ReadInterface:
         await RisingEdge(self.dut.CLK)
         self.dut.read_en.value = 0
         await RisingEdge(self.dut.CLK)
-        return self.dut.read_data.value.integer
+        return int(self.dut.read_data.value)
