@@ -1,3 +1,7 @@
+
+from cocotb_coverage.coverage import CoverPoint, CoverCross, coverage_db
+
+
 CoverPoint("top.a",
             xf = lambda x,y:x,
             bins=[0,1])
