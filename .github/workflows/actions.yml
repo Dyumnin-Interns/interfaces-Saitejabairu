@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: sudo apt install -y --no-install-recommends iverilog
-      - run: pip3 install cocotb cocotb-bus cocotb-coverage
+      - run: pip3 install cocotb cocotb-bus cocotb-coverage pytest
       - run: make -C tests && mv tests/results.xml tests/orig.xml
       - run: cp hdl/delayed_dut.v hdl/dut.v && make -C tests && mv tests/results.xml tests/delayed_dut.xml
       - uses: actions/upload-artifact@v4
