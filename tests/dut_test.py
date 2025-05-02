@@ -19,7 +19,11 @@ B_DATA_ADDR   = 5
 async def dut_test(dut):
 
     read_if = ReadInterface(dut)
-    write_if = WriteInterface(dut)  
+    write_if = WriteInterface(dut) 
+    
+
+    A_DATA = 0b100
+    B_DATA = 0b101
     # Create clock
     cocotb.start_soon(Clock(dut.CLK, 10, units="ns").start())
 
