@@ -31,10 +31,10 @@ module dut_test(
     .read_rdy(read_rdy)
   );
 
-  initial begin
-	$dumpfile("interface.vcd");
-	$dumpvars;
-  end
+ initial begin
+  $dumpfile("interface.vcd");
+  $dumpvars(0, dut_test);  // Change to your wrapper module's name
+end
 
 
 endmodule
