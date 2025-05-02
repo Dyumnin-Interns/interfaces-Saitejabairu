@@ -1,5 +1,5 @@
 from cocotb_bus.drivers import BusDriver
-
+from cocotb.triggers import Timer, ClockCycles, RisingEdge, Event , ReadOnly
 class write_Driver(BusDriver):
     _signals=["CLK", "RST_N", "write_address", "write_data", "write_en", "write_rdy", "read_address", "read_en", "read_rdy", "read_data"]
     def __init__(self, name, entity):
